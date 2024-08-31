@@ -1,0 +1,26 @@
+{
+  "env": {
+    "PYTHONPATH": "api/"
+  },
+  "functions": {
+    "api/app.py": {
+      "includeFiles": "api/**",
+      "memory": 1024,
+      "maxDuration": 10
+    }
+  },
+  "routes": [
+    {
+      "src": "/api",
+      "dest": "/api/app.py"
+    },
+    {
+      "src": "/api/(.*)",
+      "dest": "/api/app.py"
+    },
+    {
+      "src": "/(.*)",  
+      "dest": "/$1"   
+    }
+  ]
+}
