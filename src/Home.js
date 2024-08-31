@@ -4,7 +4,7 @@ function Home() {
   const [direccion, setDireccion] = useState('');
   const [metros, setMetros] = useState('');
   const [tipoInmueble, setTipoInmueble] = useState('DEPARTAMENTO');
-  const [superficieM2, setSuperficieM2] = useState('');
+  const [superficieM2, setSuperficieM2] = useState('50');
   const [ambientes, setAmbientes] = useState('');
   const [respuesta, setRespuesta] = useState(null);  // Estado para almacenar la respuesta completa
 
