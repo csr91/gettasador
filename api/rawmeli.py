@@ -1,9 +1,7 @@
-from flask import Flask, request, jsonify
+import time
 import requests
 import urllib.parse
 import math
-
-app = Flask(__name__)
 
 # Función para convertir metros a grados
 def metros_a_grados(metros, latitud):
@@ -14,36 +12,43 @@ def metros_a_grados(metros, latitud):
 def cortar_a_6_decimales(numero):
     return float(str(numero)[:str(numero).find('.') + 7])
 
-@app.route('/api/in_calc', methods=['POST'])
-def in_calc():
-    data = request.get_json()
-    direccion = data.get('direccion')
-    roundmeters = data.get('roundmeters')
+# Solicitar la dirección al usuario
+direccion = input("Introduce la dirección: ")
+metros = int(input("Distancia en metros a buscar?: "))
 
-    if not direccion or not isinstance(roundmeters, int):
-        return jsonify({'error': 'Datos inválidos'}), 400
+print("-" * 40)
 
-    # Codificar la dirección para su uso en la URL
-    direccion_codificada = urllib.parse.quote(direccion)
+# Codificar la dirección para su uso en la URL
+direccion_codificada = urllib.parse.quote(direccion)
 
-    # URL de la API con la dirección codificada
-    url = f"https://apis.datos.gob.ar/georef/api/direcciones?direccion={direccion_codificada}&provincia=CABA"
+# URL de la API con la dirección codificada
+url = f"https://apis.datos.gob.ar/georef/api/direcciones?direccion={direccion_codificada}&provincia=CABA"
 
-    try:
-        # Hacer la solicitud GET a la API
-        response = requests.get(url)
-        response.raise_for_status()
-
+try:
+    # Hacer la solicitud GET a la API
+    response = requests.get(url)
+    
+    if response.status_code == 200:
         data = response.json()
+        
         if data['cantidad'] > 0:
             ubicacion = data['direcciones'][0]['ubicacion']
             latitud = ubicacion['lat']
             longitud = ubicacion['lon']
             mapurl = f"https://www.google.com/maps/search/?api=1&query={latitud},{longitud}"
-
-            desplazamiento_latitud, desplazamiento_longitud = metros_a_grados(roundmeters, latitud)
+            
+            desplazamiento_latitud, desplazamiento_longitud = metros_a_grados(metros, latitud)
             punto_norte_oeste = (latitud + desplazamiento_latitud, longitud - desplazamiento_longitud)
             punto_sur_este = (latitud - desplazamiento_latitud, longitud + desplazamiento_longitud)
+
+            time.sleep(1.5)
+            print("Calculando Geolocalización:")
+            time.sleep(1.5)
+
+            print(f"Centro: Latitud {latitud}, Longitud {longitud}")
+            print(f"Mapa: {mapurl}")
+
+            time.sleep(1.5)
 
             client_id = '382404286946395'
             client_secret = 'kgtQyBQOMsXiQR2YZsjXjbD6E4t8ylnX'
@@ -59,9 +64,8 @@ def in_calc():
                 'client_secret': client_secret
             }
 
-            auth_response = requests.post(auth_url, headers=headers, data=data)
-            auth_response.raise_for_status()
-            token_info = auth_response.json()
+            response = requests.post(auth_url, headers=headers, data=data)
+            token_info = response.json()
             access_token = token_info['access_token']
 
             # Realizar la primera búsqueda para obtener el total de resultados
@@ -71,58 +75,62 @@ def in_calc():
                 f"lat:{cortar_a_6_decimales(punto_norte_oeste[1])}_{cortar_a_6_decimales(punto_sur_este[1])}&category=MLA1459"
             )
 
-            search_response = requests.get(f"{search_url_base}&limit=1&offset=0", headers={'Authorization': f'Bearer {access_token}'})
-            search_response.raise_for_status()
-            search_data = search_response.json()
-            total_results = search_data['paging']['primary_results']
+            response = requests.get(f"{search_url_base}&limit=1&offset=0", headers={'Authorization': f'Bearer {access_token}'})
+            print("-" * 40)
 
-            results = []
-            limit = 10
-            offset = 0
-            current_page = 1
-            
-            while offset < total_results:
-                paginated_url = f"{search_url_base}&limit={limit}&offset={offset}"
-                paginated_response = requests.get(paginated_url, headers={'Authorization': f'Bearer {access_token}'})
-                paginated_response.raise_for_status()
-                paginated_data = paginated_response.json()
-
-                for result in paginated_data['results']:
-                    operation = next((attr['value_name'] for attr in result.get('attributes', []) if attr['id'] == 'OPERATION'), 'No disponible')
-                    title = result['title']
-                    if operation == 'Venta':
-                        price = result['price']
-                        permalink = result['permalink']
-                        address = result['location'].get('address_line', 'No disponible')
-                        latitude = result['location'].get('latitude', 'No disponible')
-                        longitude = result['location'].get('longitude', 'No disponible')
-                        surface_total = next((attr['value_name'] for attr in result.get('attributes', []) if attr['id'] == 'TOTAL_AREA'), 'No disponible')
-
-                        results.append({
-                            'title': title,
-                            'price': price,
-                            'link': permalink,
-                            'address': address,
-                            'latitude': latitude,
-                            'longitude': longitude,
-                            'surface_total': surface_total,
-                            'operation': operation
-                        })
+            if response.status_code == 200:
                 
-                offset += limit
-                current_page += 1
+                data = response.json()
+                total_results = data['paging']['primary_results']
+                print(f"Total de resultados: {total_results}")
+                time.sleep(1.5)
+                total_pages = math.ceil(total_results / 50)  # Número total de páginas
+                
+                # Procesar los resultados paginados
+                limit = 50
+                offset = 0
+                current_page = 1
+                
+                while offset < total_results:
+                    paginated_url = f"{search_url_base}&limit={limit}&offset={offset}"
+                    response = requests.get(paginated_url, headers={'Authorization': f'Bearer {access_token}'})
 
-            return jsonify({
-                'message': f"Centro: Latitud {latitud}, Longitud {longitud}",
-                'mapurl': mapurl,
-                'results': results
-            })
+                    if response.status_code == 200:
+                        data = response.json()
+                        print(f"Página {current_page} de {total_pages}")
+                        print("-" * 40)
+                        for result in data['results']:
+                            operation = next((attr['value_name'] for attr in result.get('attributes', []) if attr['id'] == 'OPERATION'), 'No disponible')
+                            currency = result['currency_id']
+                            title = result['title']
+                            if operation == 'Venta' and currency == 'USD':
+                                price = result['price']
+                                permalink = result['permalink']
+                                address = result['location'].get('address_line', 'No disponible')
+                                latitude = result['location'].get('latitude', 'No disponible')
+                                longitude = result['location'].get('longitude', 'No disponible')
+                                surface_total = next((attr['value_name'] for attr in result.get('attributes', []) if attr['id'] == 'TOTAL_AREA'), 'No disponible')
+
+                                print(f"Título: {title}")
+                                print(f"Precio: {price}")
+                                print(f"Link: {permalink}")
+                                print(f"Dirección: {address}")
+                                print(f"Geolocalización: Latitud {latitude}, Longitud {longitude}")
+                                print(f"Superficie Total: {surface_total} m²")
+                                print(f"Operación: {operation}")
+                                print("-" * 40)
+                    
+                    offset += limit
+                    current_page += 1
+                    time.sleep(1)  # Pausa entre solicitudes para no sobrecargar la API
+
+            else:
+                print(f'Error en la solicitud: {response.status_code} - {response.text}')
 
         else:
-            return jsonify({'message': 'No se encontraron resultados para la dirección proporcionada.'}), 404
+            print("No se encontraron resultados para la dirección proporcionada.")
+    else:
+        print("Error al hacer la solicitud:", response.status_code)
 
-    except requests.RequestException as e:
-        return jsonify({'error': str(e)}), 500
-
-if __name__ == '__main__':
-    app.run(debug=True)
+except requests.RequestException as e:
+    print("Error en la solicitud:", e)

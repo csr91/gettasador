@@ -87,8 +87,9 @@ def buscar_propiedades(direccion, metros):
                             data = response.json()
                             for result in data['results']:
                                 operation = next((attr['value_name'] for attr in result.get('attributes', []) if attr['id'] == 'OPERATION'), 'No disponible')
+                                currency = result['currency_id']
                                 title = result['title']
-                                if operation == 'Venta':
+                                if operation == 'Venta' and currency == 'USD':
                                     price = result['price']
                                     permalink = result['permalink']
                                     address = result['location'].get('address_line', 'No disponible')
