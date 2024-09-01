@@ -13,7 +13,7 @@ function Home() {
 
     const requestBody = {
       direccion: direccion,
-      roundmeters: parseInt(metros),
+      roundmeters: metros ? parseInt(metros) : 50,
       tipoInmueble: tipoInmueble,
       m2property: parseFloat(superficieM2),
       ambientes: parseInt(ambientes),
