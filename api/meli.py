@@ -138,7 +138,6 @@ def buscar_propiedades(direccion, metros):
                     return {
                         'total_results': total_results,
                         'map_url': mapurl,
-                        'resultados': resultados,
                         'm2price_average': m2price_average,
                         'm2price_count': m2price_count
                     }
