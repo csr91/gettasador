@@ -5,7 +5,7 @@ app = Flask(__name__)
 
 @app.route('/api/hello')
 def hello():
-    return 'Holis'
+    return 'Holissssss'
 
 @app.route('/api/in_calc', methods=['POST'])
 def in_calc():
@@ -27,6 +27,7 @@ def in_calc():
         
         # Llamar a la función buscar_propiedades
         resultados = buscar_propiedades(direccion, roundmeters)
+        print(resultados)
         
         if 'error' in resultados:
             return jsonify({'error': resultados['error']}), 400
@@ -46,6 +47,8 @@ def in_calc():
         # Agregar el resultado de la multiplicación a los resultados con el mensaje personalizado
         resultados['mensaje'] = f"Encontramos {m2price_count} resultados con un precio promedio de {m2price_average} por m2, tu propiedad de {m2property} m2 tiene una valuación aproximada de: {round(total_price)} USD"
         
+        resultados['total_price'] = round(total_price)
+
         # Devolver los resultados en formato JSON
         return jsonify(resultados), 200
     
