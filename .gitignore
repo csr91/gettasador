@@ -23,3 +23,5 @@ yarn-debug.log*
 yarn-error.log*
 
 /api/auth.json
+
+setupProxy.js
