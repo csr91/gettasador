@@ -8,7 +8,8 @@ num_pages = int(input("¿Cuántas páginas deseas generar? "))
 
 # Generar las URLs con base en el número de páginas ingresado
 base_url = "https://www.zonaprop.com.ar/departamentos-venta-capital-federal-orden-publicado-descendente-pagina-"
-urls = [f"{base_url}{i}.html" for i in range(1, num_pages + 1)]
+start_page = 1  # Cambia este valor para comenzar desde la página 5
+urls = [f"{base_url}{i}.html" for i in range(start_page, start_page + num_pages + 1)]
 
 # Imprimir las URLs generadas
 print(urls)
@@ -17,6 +18,8 @@ print(urls)
 time.sleep(3)
 
 for url in urls:
+
+    print(url)
     # Copiar la URL al portapapeles
     pyperclip.copy(url)
 
@@ -59,9 +62,27 @@ cards.forEach(card => {
     const posting_div = card.querySelector('div[data-to-posting]');
     const full_url = posting_div ? "https://www.zonaprop.com.ar" + posting_div.getAttribute('data-to-posting') : null;
 
-    // Obtener dirección y sub-barrio
+    // Obtener dirección
     const direccion = card.querySelector('.LocationAddress-sc-ge2uzh-0') ? card.querySelector('.LocationAddress-sc-ge2uzh-0').innerText.trim() : null;
-    const sub_barrio = card.querySelector('.LocationLocation-sc-ge2uzh-2') ? card.querySelector('.LocationLocation-sc-ge2uzh-2').innerText.trim().split(",")[0] : null;
+
+    // Obtener información de la clase que contiene el barrio y sub-barrio
+    const locationData = card.querySelector('.LocationLocation-sc-ge2uzh-2') ? card.querySelector('.LocationLocation-sc-ge2uzh-2').innerText.trim() : null;
+
+    let barrio = null;
+    let sub_barrio = null;
+
+    // Verificar si locationData contiene información
+    if (locationData) {
+        if (locationData.includes("Capital Federal")) {
+            // Si es "Capital Federal", barrio es el dato a la izquierda de la coma
+            barrio = locationData.split(",")[0].trim();
+        } else {
+            // Si NO es "Capital Federal", barrio es el dato a la derecha de la coma
+            barrio = locationData.split(",")[1].trim();
+            // sub_barrio es el dato a la izquierda de la coma
+            sub_barrio = locationData.split(",")[0].trim();
+        }
+    }
 
     // Obtener precio y moneda
     const precioElement = card.querySelector('.Price-sc-12dh9kl-3');
@@ -108,6 +129,7 @@ cards.forEach(card => {
         url: full_url,
         location: {
             address: direccion,
+            barrio: barrio,
             sub_barrio: sub_barrio
         },
         price: {
@@ -128,7 +150,7 @@ cards.forEach(card => {
 });
 
 // Enviar todos los resultados en un solo POST después de procesar todas las tarjetas
-fetch('https://calc-inmo.vercel.app/api/save_avisos', {
+fetch('http://127.0.0.1:5000/api/save_avisos', {
     method: 'POST',
     headers: {
         'Content-Type': 'application/json'
@@ -138,7 +160,6 @@ fetch('https://calc-inmo.vercel.app/api/save_avisos', {
 .then(response => response.json())
 .then(data => console.log('Datos guardados:', data))
 .catch(error => console.error('Error al guardar los datos:', error));
-
 
 """
 
@@ -158,6 +179,7 @@ fetch('https://calc-inmo.vercel.app/api/save_avisos', {
 
     # Esperar un momento para que se ejecute el comando y se copien los datos
     time.sleep(1)
+    
 
 # Finalizar el script
 print("Todas las URLs han sido procesadas.")

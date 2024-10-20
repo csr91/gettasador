@@ -2,6 +2,8 @@ from flask import Flask, request, jsonify
 import mysql.connector
 from flask_cors import CORS
 from meli import buscar_propiedades
+from Localizacion.loc import geolocalizar_direccion
+
 
 app = Flask(__name__)
 CORS(app)  # Habilitar CORS para todas las rutas
@@ -82,10 +84,10 @@ def save_aviso():
         conn = get_connection()
         cursor = conn.cursor()
 
-        # Consulta SQL para insertar los datos
+        # Consulta SQL para insertar los datos (incluyendo barrio y geolocalización)
         query = """
-            INSERT INTO avisos (aviso_id, url, direccion, sub_barrio, precio, moneda, superficie, ambientes, dormitorios, banos, cochera)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            INSERT INTO avisos (aviso_id, url, direccion, sub_barrio, barrio, precio, moneda, superficie, ambientes, dormitorios, banos, cochera, latitud, longitud, geo)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         """
 
         # Iterar sobre la lista de avisos y guardar cada uno
@@ -94,8 +96,18 @@ def save_aviso():
             url = aviso.get('url')
             direccion = aviso.get('location', {}).get('address')
             sub_barrio = aviso.get('location', {}).get('sub_barrio')
+            barrio = aviso.get('location', {}).get('barrio')  # Extraer el dato de barrio
             precio = aviso.get('price', {}).get('amount')
             moneda = aviso.get('price', {}).get('currency')
+
+            # Llamar a la función geolocalizar_direccion
+            geolocalizacion = geolocalizar_direccion(direccion)
+            if geolocalizacion:
+                latitud, longitud = geolocalizacion  # Desempacar la tupla directamente
+                geo = f"{latitud}, {longitud}"  # Formato de geolocalización
+            else:
+                latitud, longitud, geo = None, None, None  # Valores por defecto si no se encuentra geolocalización
+
 
             # Manejar valores nulos en los campos numéricos con valores por defecto
             superficie = aviso.get('features', {}).get('superficie') or 0
@@ -116,7 +128,7 @@ def save_aviso():
             cochera = int(cochera) if isinstance(cochera, bool) else 0
 
             # Ejecutar la consulta para cada aviso
-            values = (aviso_id, url, direccion, sub_barrio, precio, moneda, superficie, ambientes, dormitorios, banos, cochera)
+            values = (aviso_id, url, direccion, sub_barrio, barrio, precio, moneda, superficie, ambientes, dormitorios, banos, cochera, latitud, longitud, geo)
             cursor.execute(query, values)
 
         # Confirmar todos los inserts en la base de datos
@@ -127,8 +139,8 @@ def save_aviso():
 
     except mysql.connector.Error as err:
         # Si ocurre un error de MySQL, devolver un mensaje de error
+        print(err)  
         return jsonify({"status": "error", "message": str(err)}), 500
-        print(err)
 
     except Exception as e:
         # Manejar otros posibles errores
@@ -141,6 +153,7 @@ def save_aviso():
             cursor.close()
         if conn:
             conn.close()
+
 
 if __name__ == '__main__':
     app.run(debug=True)
