@@ -2,14 +2,12 @@ import concurrent.futures
 import requests
 import mysql.connector
 from flask_cors import CORS
-from meli import buscar_propiedades
-from Localizacion.loc import geolocalizar_direccion, geolocalizar_multiples_direcciones
 import json
 from functools import wraps
 from bdd import db_config
 from flask import Flask, render_template, jsonify, request, redirect, url_for, session, make_response
 from userlog import encriptar_password, guardar_usuario_en_db, login, generar_token, enviar_correo_confirmacion, loginsso, guardar_usuario_en_db_sso
-from apicore import get_user_email, requiere_session, registro
+from apicore import get_user_email, requiere_session, registro, buscar_propiedades, geolocalizar_direccion, geolocalizar_multiples_direcciones
 from pymongo import MongoClient
 from pymongo.server_api import ServerApi
 import uuid

@@ -1,6 +1,0 @@
-TEST
-Google GEO API
-python -c "from app import fetch_directions_without_geo; resultado = fetch_directions_without_geo(); print(resultado)"
-
-python -c "from loc import geolocalizar_direccion; direccion = 'Av de la Cruz 6800'; resultado = geolocalizar_direccion(direccion); print(resultado)"
-python -c "from loc import geolocalizar_multiples_direcciones; direcciones = ['Thames 2100', 'Humboldt 2300', 'Migueletes 2300', 'Corrientes 3500', 'Santasdcasda Fe 1500', 'Av. Libertador 5000', 'Rivadavia 4500', 'Belgrano 2000', 'Av. Córdoba 3600', 'Pueyrredón 1400']; resultados = geolocalizar_multiples_direcciones(direcciones); print(resultados)"
