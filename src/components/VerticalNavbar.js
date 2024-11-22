@@ -1,9 +1,11 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
+import { FaTh, FaCalculator, FaHistory, FaCog, FaSignOutAlt } from 'react-icons/fa';
+import { useSession } from '../hooks/SessionContext'; // Importa el contexto
 import '../styles/NavBar.css';
-import { FaTh, FaList, FaCalculator, FaHistory, FaCog, FaSignOutAlt } from 'react-icons/fa'; // Importar íconos
 
-function VerticalNavbar({ sessionStatus }) {
+function VerticalNavbar() {
+  const { sessionStatus } = useSession(); // Obtén sessionStatus desde el contexto
   const [isCollapsed, setIsCollapsed] = useState(false);
 
   const toggleNavbar = () => {
@@ -29,19 +31,14 @@ function VerticalNavbar({ sessionStatus }) {
     }
   };
 
-  console.log('Estado de sessionStatus:', sessionStatus); // Agrega este console.log para depuración
-
   return (
     <div className={`navbar ${isCollapsed ? 'collapsed' : ''}`}>
       <button className="navbar-vertical-toggle" onClick={toggleNavbar}>
         {isCollapsed ? '> ' : '<'}
       </button>
-
       <div className="navbar-vertical">
         <div className="navbar-header">
-          <h1 className="hero-navtitle">
-            {isCollapsed ? 'TT' : <>GETTASADOR</>}
-          </h1>
+          <h1 className="hero-navtitle">{isCollapsed ? 'TT' : <>GETTASADOR</>}</h1>
         </div>
         <div className="navbar-menu">
           <Link to="/dash" className="navbar-link">
