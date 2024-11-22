@@ -8,17 +8,29 @@
   
 }
 
-.login-container {
-    display: flex;
-    flex-direction: column;
-    height: 100vh; /* Ocupa toda la altura de la ventana */
-    margin: 0;
-    background-color: #f4f4f4; /* Fondo claro para el formulario */
-    justify-content: center; /* Centra el formulario verticalmente */
-    align-items: center;
-    justify-content: center;
-    width: 100%;
+@keyframes slideInFromRight {
+  from {
+    transform: translateX(100vw); /* Inicia fuera del viewport a la derecha */
+    opacity: 0; /* Inicialmente invisible */
+    background-color: white; /* Fondo claro para el formulario */
   }
+  to {
+    transform: translateX(0); /* Posición final */
+    opacity: 1; /* Totalmente visible */
+  }
+}
+
+.login-container {
+  display: flex;
+  flex-direction: column;
+  height: 100vh; /* Ocupa toda la altura de la ventana */
+  margin: 0;
+  background-color: white; /* Fondo claro para el formulario */
+  justify-content: center; /* Centra el formulario verticalmente */
+  align-items: center;
+  width: 100%;
+  animation: slideInFromRight 0.5s ease-out; /* Aplica la animación al cargar */
+}
   
   .form-section {
     width: 100%;
@@ -27,7 +39,7 @@
     justify-content: center; /* Centra el formulario verticalmente */
     align-items: center;
     justify-content: center;
-    background-color: #f4f4f4; /* Fondo claro para el formulario */
+    background-color: white; /* Fondo claro para el formulario */
   }
   
   h2 {

@@ -4,9 +4,8 @@
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    height: 100vh;
-    background-color: #ffffff;
     color: #333;
+    margin: 0;
   }
   
   .spinner {
@@ -35,7 +34,6 @@
     width: 20px;
     height: 20px;
     animation: spin2 1s linear infinite;
-    margin-left: 10px;
     display: inline-block;
   }
   
