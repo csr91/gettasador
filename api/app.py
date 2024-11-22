@@ -33,15 +33,68 @@ def hello():
 
 @app.route('/api/in_calc', methods=['POST'])
 def in_calc():
-    # Obtener los datos JSON de la solicitud
+    rctindex()
     data = request.get_json()
-    print(data)
     
     # Extraer los parámetros de la solicitud
     direccion = data.get('direccion')
     m2property = data.get('m2property')
     roundmeters = data.get('roundmeters')
     
+    consumo_prestock()
+
+    if not direccion or m2property is None or roundmeters is None:
+        return jsonify({'error': 'Faltan parámetros: direccion, m2property, y roundmeters son requeridos'}), 400
+    
+    try:
+        # Convertir m2property a float
+        m2property = float(m2property)
+        
+        # Llamar a la función buscar_propiedades
+        resultados = buscar_propiedades(direccion, roundmeters)
+        print(resultados)
+        
+        if 'error' in resultados:
+            return jsonify({'error': resultados['error']}), 400
+        
+        # Obtener y redondear m2price_average
+        m2price_average = resultados.get('m2price_average')
+        m2price_count = resultados.get('m2price_count')
+        
+        if m2price_average is None or not isinstance(m2price_average, (int, float)):
+            return jsonify({'error': 'm2price_average no encontrado o no es un número válido'}), 400
+        
+        m2price_average = round(m2price_average, 2)
+        
+        # Multiplicar m2property por m2price_average
+        total_price = m2property * m2price_average
+        
+        # Agregar el resultado de la multiplicación a los resultados con el mensaje personalizado
+        resultados['mensaje'] = f"Encontramos {m2price_count} resultados con un precio promedio de {m2price_average} por m2, tu propiedad de {m2property} m2 tiene una valuación aproximada de: {round(total_price)} USD"
+        
+        resultados['total_price'] = round(total_price)
+
+        # Devolver los resultados en formato JSON
+        return jsonify(resultados), 200
+    
+    except ValueError:
+        return jsonify({'error': 'm2property debe ser un número válido'}), 400
+    
+    except Exception as e:
+        return jsonify({'error': f'Error al procesar la solicitud: {str(e)}'}), 500
+
+@app.route('/api/fullin_calc', methods=['POST'])
+def fullin_calc():
+    rctindex()
+    data = request.get_json()
+    
+    # Extraer los parámetros de la solicitud
+    direccion = data.get('direccion')
+    m2property = data.get('m2property')
+    roundmeters = data.get('roundmeters')
+    
+    consumo_prestock()
+
     if not direccion or m2property is None or roundmeters is None:
         return jsonify({'error': 'Faltan parámetros: direccion, m2property, y roundmeters son requeridos'}), 400
     
@@ -380,6 +433,13 @@ collection_disp_ip = db['disp_ip']
 # Función para limpiar entradas expiradas en MongoDB
 def clean_expired_entries():
     current_time = datetime.now()
+    # Encuentra los documentos que serán eliminados
+    expired_entries = collection_disp_ip.find({'endtime': {'$lt': current_time}})
+    
+    # Extrae y muestra los UUIDs de los documentos a eliminar
+    uuids_to_delete = [entry.get('uuid') for entry in expired_entries]
+    print("UUIDs a limpiar:", uuids_to_delete)
+    
     # Elimina los documentos cuyo campo 'endtime' ya ha pasado
     collection_disp_ip.delete_many({'endtime': {'$lt': current_time}})
 
@@ -433,7 +493,7 @@ def rctindex():
 
         return jsonify(response_data), 401
 
-@app.route('/api/consumo_prestock', methods=['POST'])
+@app.route('/api/consumo_prestock', methods=['GET'])
 def consumo_prestock():
     # Llamamos a rctindex para obtener la respuesta
     response, status_code = rctindex()
@@ -459,7 +519,7 @@ def consumo_prestock():
         # Usuario autenticado u otra respuesta de rctindex
         return jsonify({'status': 'Error', 'message': 'Operación no permitida para usuarios autenticados'}), 403
 
-# Enviar un ping para confirmar una conexión exitosa
+# Enviar un ping para confirmar una conexiónexitosa
 try:
     client.admin.command('ping')
     print("Pinged your deployment. You successfully connected to MongoDB!")

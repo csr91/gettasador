@@ -42,9 +42,6 @@ const CalcSplit = () => {
         ) : (
           <Calc />
         )}
-
-        {/* Botón para hacer el POST */}
-        <button onClick={handlePostRequest}>Enviar Consumo</button>
       </div>
       <div className="right-section">
         {/* Renderiza la respuesta en la sección derecha */}
@@ -71,7 +68,7 @@ const CalcSplit = () => {
             </p>
           </div>
         ) : (
-          <h1>Hola</h1>
+          <div></div>
         )}
       </div>
     </div>
