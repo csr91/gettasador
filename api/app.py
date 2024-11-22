@@ -308,94 +308,6 @@ def fetch_directions_without_geo():
 def sso():
     return get_user_email()
 
-# Variable en memoria para almacenar datos de dispositivo e IP
-disp_ip = []
-
-# Función para limpiar entradas expiradas
-def clean_expired_entries():
-    global disp_ip
-    current_time = datetime.now()
-    disp_ip = [entry for entry in disp_ip if entry['endtime'] > current_time]
-
-# Endpoint para manejar sesiones de usuario y disp_ip
-@app.route('/api/getsession', methods=['GET'])
-def rctindex():
-    clean_expired_entries()
-    dispositivo = request.headers.get('User-Agent', 'Unknown')
-    ip = request.remote_addr
-    user_id = session.get('userid')
-
-    if user_id:
-        # Usuario está autenticado
-        response_data = {
-            'status': 'OK',
-            'message': 'Usuario autenticado',
-            'user_id': user_id
-        }
-        return jsonify(response_data), 200
-    else:
-        # Usuario no está autenticado
-        existing_entry = next((entry for entry in disp_ip if entry['dispositivo'] == dispositivo and entry['ip'] == ip), None)
-
-        if existing_entry:
-            # Registro ya existe, agregamos uuid y prestock al response
-            response_data = {
-                'status': 'Unauthorized',
-                'message': 'Usuario no autenticado',
-                'prestock': existing_entry['prestock'],
-                'uuid': existing_entry['idunico'],
-                'dispositivo': dispositivo,
-                'ip': ip
-            }
-        else:
-            # Creamos un nuevo registro
-            new_entry = {
-                'idunico': str(uuid.uuid4()),
-                'dispositivo': dispositivo,
-                'ip': ip,
-                'prestock': 1,
-                'endtime': datetime.now() + timedelta(seconds=30)
-            }
-            disp_ip.append(new_entry)
-
-            response_data = {
-                'status': 'Unauthorized',
-                'message': 'Usuario no autenticado',
-                'prestock': 1,
-                'dispositivo': dispositivo,
-                'ip': ip
-            }
-
-        return jsonify(response_data), 401
-
-@app.route('/api/consumo_prestock', methods=['POST'])
-def consumo_prestock():
-    print(disp_ip)
-    # Llamamos a rctindex para obtener la respuesta
-    response, status_code = rctindex()
-    
-    if status_code == 401:
-        # Usuario no autenticado
-        response_json = response.get_json()
-        uuid_to_check = response_json.get('uuid')
-        
-        if uuid_to_check:
-            print(f"UUID obtenido de rctindex: {uuid_to_check}")
-            # Buscar en disp_ip
-            entry = next((entry for entry in disp_ip if entry['idunico'] == uuid_to_check), None)
-
-            if entry:
-                # Cambiar el prestock a 0
-                entry['prestock'] = 0
-                return jsonify({'status': 'OK', 'message': 'Prestock consumido', 'uuid': uuid_to_check}), 200
-            else:
-                return jsonify({'status': 'Not Found', 'message': 'UUID no encontrado'}), 404
-        else:
-            return jsonify({'status': 'Error', 'message': 'No UUID in response from rctindex'}), 400
-    else:
-        # Usuario autenticado u otra respuesta de rctindex
-        return jsonify({'status': 'Error', 'message': 'Operación no permitida para usuarios autenticados'}), 403
-    
 
 @app.route('/api/login', methods=['POST'])
 def pstlogin():
@@ -459,14 +371,93 @@ def confirmar_registro():
 
 # URI de conexión a MongoDB
 uri = "mongodb+srv://cesarmendoza77:7hLCBopqFoTBmF4v@cluster0.papc1wn.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
-
-# Crear un nuevo cliente y conectar al servidor
 client = MongoClient(uri, server_api=ServerApi('1'))
 
 # Obtener la base de datos y la colección
-db = client['gettalent']
-collection_busquedas = db['busquedas']
-collection_candidatos = db['candidatos']
+db = client['gettasador']
+collection_disp_ip = db['disp_ip']
+
+# Función para limpiar entradas expiradas en MongoDB
+def clean_expired_entries():
+    current_time = datetime.now()
+    # Elimina los documentos cuyo campo 'endtime' ya ha pasado
+    collection_disp_ip.delete_many({'endtime': {'$lt': current_time}})
+
+@app.route('/api/getsession', methods=['GET'])
+def rctindex():
+    clean_expired_entries()
+    dispositivo = request.headers.get('User-Agent', 'Unknown')
+    ip = request.remote_addr
+    user_id = session.get('userid')
+
+    if user_id:
+        # Usuario está autenticado
+        response_data = {
+            'status': 'OK',
+            'message': 'Usuario autenticado',
+            'user_id': user_id
+        }
+        return jsonify(response_data), 200
+    else:
+        # Usuario no está autenticado, buscamos en MongoDB
+        existing_entry = collection_disp_ip.find_one({'dispositivo': dispositivo, 'ip': ip})
+
+        if existing_entry:
+            # Registro ya existe, agregamos uuid y prestock al response
+            response_data = {
+                'status': 'Unauthorized',
+                'message': 'Usuario no autenticado',
+                'prestock': existing_entry['prestock'],
+                'uuid': existing_entry['idunico'],
+                'dispositivo': dispositivo,
+                'ip': ip
+            }
+        else:
+            # Creamos un nuevo registro
+            new_entry = {
+                'idunico': str(uuid.uuid4()),
+                'dispositivo': dispositivo,
+                'ip': ip,
+                'prestock': 1,
+                'endtime': datetime.now() + timedelta(seconds=30)
+            }
+            collection_disp_ip.insert_one(new_entry)
+
+            response_data = {
+                'status': 'Unauthorized',
+                'message': 'Usuario no autenticado',
+                'prestock': 1,
+                'dispositivo': dispositivo,
+                'ip': ip
+            }
+
+        return jsonify(response_data), 401
+
+@app.route('/api/consumo_prestock', methods=['POST'])
+def consumo_prestock():
+    # Llamamos a rctindex para obtener la respuesta
+    response, status_code = rctindex()
+
+    if status_code == 401:
+        # Usuario no autenticado
+        response_json = response.get_json()
+        uuid_to_check = response_json.get('uuid')
+
+        if uuid_to_check:
+            # Buscar en MongoDB
+            entry = collection_disp_ip.find_one({'idunico': uuid_to_check})
+
+            if entry:
+                # Cambiar el prestock a 0
+                collection_disp_ip.update_one({'idunico': uuid_to_check}, {'$set': {'prestock': 0}})
+                return jsonify({'status': 'OK', 'message': 'Prestock consumido', 'uuid': uuid_to_check}), 200
+            else:
+                return jsonify({'status': 'Not Found', 'message': 'UUID no encontrado'}), 404
+        else:
+            return jsonify({'status': 'Error', 'message': 'No UUID in response from rctindex'}), 400
+    else:
+        # Usuario autenticado u otra respuesta de rctindex
+        return jsonify({'status': 'Error', 'message': 'Operación no permitida para usuarios autenticados'}), 403
 
 # Enviar un ping para confirmar una conexión exitosa
 try:
@@ -476,4 +467,4 @@ except Exception as e:
     print(e)
 
 if __name__ == '__main__':
-    app.run(debug=False)
+    app.run(debug=True)
