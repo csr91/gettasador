@@ -1,0 +1,67 @@
+.tabla-container {
+    width: 80%;
+    margin: 20px auto;
+    font-family: Arial, sans-serif;
+}
+
+.tabla {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 20px;
+}
+
+.tabla th,
+.tabla td {
+    border: 1px solid #ddd;
+    padding: 8px;
+    text-align: left;
+}
+
+.tabla th {
+    background-color: #f4f4f4;
+    font-weight: bold;
+}
+
+.tabla tbody tr:nth-child(even) {
+    
+}
+
+.tabla tbody tr:hover {
+    background-color: #eef3fa; /* Resalta aún más cuando pasa el mouse */
+}
+
+.paginador {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.paginador button {
+    background-color: #007bff;
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    cursor: pointer;
+    border-radius: 5px;
+    font-size: 14px;
+}
+
+.paginador button:disabled {
+    background-color: #ccc;
+    cursor: not-allowed;
+}
+
+.paginador span {
+    font-size: 14px;
+}
+
+.active-row {
+    background-color: #eef3fa; /* Resalta aún más cuando pasa el mouse */
+}
+.active-row:hover {
+    background-color: #eef3fa; /* Resalta aún más cuando pasa el mouse */
+}
+tr:hover {
+    cursor: pointer;
+    background-color: #eef3fa; /* Resalta aún más cuando pasa el mouse */
+}

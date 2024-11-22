@@ -1,0 +1,97 @@
+.crear-form-header {
+margin-bottom: 20px;
+}
+
+#crear-busqueda-form {
+width: 100%;
+}
+
+.form-container form {
+display: flex;
+flex-direction: column;
+margin-top: 20px;
+width: 100%;
+}
+
+.form-container input {
+width: 95%;
+height: 4vh;
+border: 1px solid #ccc; /* Borde ligero */
+border-radius: 4px; /* Esquinas redondeadas */
+padding-left: 10px; /* Agrega espacio a la izquierda del texto */
+align-items: center;
+justify-content: center;
+}
+
+.form-container select {
+width: 95%;
+height: 4vh;
+border: 1px solid #ccc; /* Borde ligero */
+border-radius: 4px; /* Esquinas redondeadas */
+padding-left: 10px; /* Agrega espacio a la izquierda del texto */
+align-items: center;
+justify-content: center;
+}
+
+form h3 {
+font-size: 1.5em;
+margin-bottom: 10px;
+}
+
+.form-container {
+display: flex;
+gap: 20px;
+}
+
+.form-left,
+.form-right {
+flex: 1;
+display: flex;
+flex-direction: column;
+gap: 10px;
+}
+
+.form-right textarea {
+flex: 1;
+resize: none;
+padding: 8px;
+border: 1px solid #ccc;
+border-radius: 4px;
+font-size: 14px;
+}
+
+form input,
+form textarea {
+padding: 8px;
+border: 1px solid #ccc;
+border-radius: 4px;
+font-size: 14px;
+}
+
+form input[type="date"] {
+font-family: Arial, sans-serif;
+font-size: 12px;
+margin-top: 5px;
+}
+
+#crear-busqueda-form .crear-button-container {
+display: flex;
+justify-content: center;
+margin-top: 20px;
+}
+
+#crear-busqueda-form #crear-busqueda-button {
+margin-top: 15px;
+width: 70%;
+padding: 10px;
+background-color: #007BFF;
+color: white;
+border: none;
+border-radius: 4px;
+cursor: pointer;
+align-self: flex-start;
+}
+
+#crear-busqueda-form #crear-busqueda-button:hover {
+background-color: #0056b3;
+}

@@ -1,0 +1,29 @@
+/* Contenedor principal que divide la pantalla en dos */
+.split-screen {
+    display: flex;
+    background-color: black;
+    width: 100%;
+  }
+  
+  /* Sección izquierda */
+  .left-section {
+    flex: 1; /* Ocupa el 50% del ancho */
+    background-color: #f0f0f0; /* Color de fondo para diferenciar */
+    
+  }
+  
+  /* Sección derecha */
+  .right-section {
+    flex: 1; /* Ocupa el 50% del ancho */
+    background-color: #e0e0e0; /* Color de fondo para diferenciar */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  
+  /* Estilo del texto "Hola" */
+  .right-section h1 {
+    font-size: 2rem;
+    color: #333;
+  }
+  

@@ -1,26 +1,41 @@
 import requests
+import concurrent.futures
 
-# Definir la dirección que quieres geolocalizar
-direccion = "Thames  2100"
+# Lista de direcciones a geolocalizar
+direcciones = [
+    "Thames 2100", 
+    "Humboldt 2300", 
+    "Migueletes 2300", 
+    "Corrientes 3500", 
+    "Santa Fe 1500", 
+    "Av. Libertador 5000", 
+    "Rivadavia 4500", 
+    "Belgrano 2000", 
+    "Av. Córdoba 3600", 
+    "Pueyrredón 1400"
+]
 
-# URL de la API con la dirección codificada
-url = f"https://apis.datos.gob.ar/georef/api/direcciones?direccion={direccion}&provincia=CABA"
-
-# Hacer la solicitud GET a la API
-response = requests.get(url)
-
-# Verificar si la solicitud fue exitosa
-if response.status_code == 200:
-    # Parsear la respuesta JSON
-    data = response.json()
+# Función para hacer una solicitud a la API de geolocalización
+def geolocalizar_direccion(direccion):
+    url = f"https://apis.datos.gob.ar/georef/api/direcciones?direccion={direccion}&provincia=CABA"
+    response = requests.get(url)
     
-    # Extraer la geolocalización si está disponible
-    if data['cantidad'] > 0:
-        ubicacion = data['direcciones'][0]['ubicacion']
-        latitud = ubicacion['lat']
-        longitud = ubicacion['lon']
-        print(f"Latitud: {latitud}, Longitud: {longitud}")
+    if response.status_code == 200:
+        data = response.json()
+        if data['cantidad'] > 0:
+            ubicacion = data['direcciones'][0]['ubicacion']
+            latitud = ubicacion['lat']
+            longitud = ubicacion['lon']
+            return f"Dirección: {direccion} - Latitud: {latitud}, Longitud: {longitud}"
+        else:
+            return f"No se encontraron resultados para la dirección: {direccion}"
     else:
-        print("No se encontraron resultados para la dirección proporcionada.")
-else:
-    print("Error al hacer la solicitud:", response.status_code)
+        return f"Error al hacer la solicitud para la dirección: {direccion} - Código: {response.status_code}"
+
+# Ejecutar solicitudes en paralelo
+with concurrent.futures.ThreadPoolExecutor() as executor:
+    results = list(executor.map(geolocalizar_direccion, direcciones))
+
+# Imprimir los resultados
+for result in results:
+    print(result)

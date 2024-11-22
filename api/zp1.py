@@ -2,20 +2,27 @@ import pyautogui
 import pyperclip
 import time
 import random
+from pywinauto import Application, Desktop
+
+# Solicitar al usuario que ingrese la página de inicio
+start_page = int(input("Ingrese la página de inicio: "))
 
 # Preguntar al usuario cuántas páginas quiere generar
-num_pages = int(input("¿Cuántas páginas deseas generar? "))
+num_pages = int(input("Cantidad de páginas a scrappear: "))
 
 # Generar las URLs con base en el número de páginas ingresado
 base_url = "https://www.zonaprop.com.ar/departamentos-venta-capital-federal-orden-publicado-descendente-pagina-"
-start_page = 1  # Cambia este valor para comenzar desde la página 5
 urls = [f"{base_url}{i}.html" for i in range(start_page, start_page + num_pages + 1)]
 
-# Imprimir las URLs generadas
-print(urls)
-
 # Esperar antes de comenzar
-time.sleep(3)
+time.sleep(1)
+
+# Automatizar la selección de la ventana de Chrome
+app = Application(backend='uia').connect(title_re='.*Chrome.*', found_index=0)
+app.top_window().set_focus()  # Focalizar la ventana de Chrome
+time.sleep(1)
+pyautogui.hotkey('ctrl', 't')
+time.sleep(1)
 
 for url in urls:
 
@@ -25,11 +32,11 @@ for url in urls:
 
     # Simular Ctrl + L (enfocar la barra de direcciones)
     pyautogui.hotkey('ctrl', 'l')
-    time.sleep(0.1)
+    time.sleep(0.5)
 
     # Simular Ctrl + V (pegar la URL)
     pyautogui.hotkey('ctrl', 'v')
-    time.sleep(0.1)
+    time.sleep(0.5)
 
     # Presionar Enter para ir a la URL
     pyautogui.press('enter')
@@ -49,7 +56,7 @@ for url in urls:
 
     # Comando para extraer información de las tarjetas de propiedad
     command = """
-const cards = document.querySelectorAll('.CardContainer-sc-1tt2vbg-5'); // Reemplaza con el selector adecuado
+const cards = document.querySelectorAll('.CardContainer-sc-1tt2vbg-5');
 
 let results = [];  // Arreglo para almacenar resultados
 
@@ -74,13 +81,10 @@ cards.forEach(card => {
     // Verificar si locationData contiene información
     if (locationData) {
         if (locationData.includes("Capital Federal")) {
-            // Si es "Capital Federal", barrio es el dato a la izquierda de la coma
-            barrio = locationData.split(",")[0].trim();
+            barrio = locationData.split(",")[0].trim(); // Barrio
         } else {
-            // Si NO es "Capital Federal", barrio es el dato a la derecha de la coma
-            barrio = locationData.split(",")[1].trim();
-            // sub_barrio es el dato a la izquierda de la coma
-            sub_barrio = locationData.split(",")[0].trim();
+            barrio = locationData.split(",")[1].trim(); // Barrio
+            sub_barrio = locationData.split(",")[0].trim(); // Sub-barrio
         }
     }
 
@@ -125,24 +129,32 @@ cards.forEach(card => {
 
     // Crear el objeto con toda la información de la propiedad
     let property = {
-        id: id,
+        origen: 'ZonaProp',  // Se asume que todos los avisos son de ZonaProp
+        aviso_id: id,
         url: full_url,
-        location: {
-            address: direccion,
-            barrio: barrio,
-            sub_barrio: sub_barrio
-        },
-        price: {
-            amount: precio,
-            currency: moneda
-        },
-        features: {
-            superficie: features.superficie,
-            ambientes: features.ambientes,
-            dormitorios: features.dormitorios,
-            banos: features.banos,
-            cochera: features.cochera // Este valor será true o false
-        }
+        direccion: direccion,
+        direccion_parsed: direccion,  // Otras transformaciones si son necesarias
+        sub_barrio: sub_barrio,
+        barrio: barrio,
+        ciudad: 'Buenos Aires',  // Asumido, puedes modificar según la lógica
+        provincia: 'Buenos Aires',  // Asumido, puedes modificar según la lógica
+        pais: 'Argentina',  // Asumido
+        precio: precio,
+        moneda: moneda,
+        superficie: features.superficie,
+        superficie_cub: null,  // Cambiar según la lógica si se necesita
+        ambientes: features.ambientes,
+        dormitorios: features.dormitorios,
+        banos: features.banos,
+        cochera: features.cochera,
+        toilette: null,  // Cambiar según la lógica si se necesita
+        antiguedad: null,  // Cambiar según la lógica si se necesita
+        disposicion: null,  // Cambiar según la lógica si se necesita
+        orientacion: null,  // Cambiar según la lógica si se necesita
+        luminosidad: null,  // Cambiar según la lógica si se necesita
+        latitud: null,  // Cambiar según la lógica si se necesita
+        longitud: null,  // Cambiar según la lógica si se necesita
+        geo: null  // Cambiar según la lógica si se necesita
     };
 
     // Agregar la propiedad al array de resultados
@@ -172,7 +184,7 @@ fetch('http://127.0.0.1:5000/api/save_avisos', {
 
     # Presionar Enter para ejecutar el comando
     pyautogui.press('enter')
-    time.sleep(0.1)
+    time.sleep(0.5)
 
 
     pyautogui.hotkey('ctrl', 'shift', 'j')

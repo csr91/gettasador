@@ -1,0 +1,124 @@
+@media (min-width: 802px) and (max-width: 3000px) {  
+.navbar {
+display: flex;
+flex-direction: column;
+justify-content: space-between;
+padding: 20px;
+background-image: url('../assets/back2.jpg');
+background-size: cover;
+color: #fff;
+position: relative; /* Esto es necesario para que la capa overlay se posicione correctamente */
+}
+
+.navbar::after {
+content: '';
+position: absolute;
+top: 0;
+left: 0;
+width: 100%;
+height: 100%;
+background-color: rgba(25, 23, 35, 0.9); /* Gris opaco */
+z-index: 1; /* Asegura que la capa overlay esté encima de la imagen */
+}
+
+.navbar > * {
+position: relative; /* Asegura que el contenido de la navbar (texto, botones, etc.) quede encima del overlay */
+z-index: 2; /* Para que el contenido se muestre encima de la capa overlay */
+}
+
+
+/* Estilos para el encabezado de la barra de navegación */
+.navbar-header {
+display: flex;
+margin-left: 7.5px;
+align-items: center;
+margin-bottom: 20px;
+
+}
+
+.navbar-vertical {
+  margin-right: 10px;
+  margin-left: -5px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  height: 100%;
+  
+}
+
+/* Estilo para el título */
+.hero-navtitle {
+
+margin: 0;
+}
+
+.navbar-header h1 {
+font-size: 20px;
+}
+
+.navbar-vertical-toggle {
+  padding: 5px;
+  position: absolute; /* Se posiciona dentro de la navbar */
+  top: 0;
+  right: 0; /* Moverlo al borde derecho */
+  height: 100%; /* Ocupa todo el alto de la navbar */
+  background-color: rgba(44, 39, 69, 0.9); /* Gris opaco */
+  color: #fff;
+  border: none;
+  cursor: pointer;
+  z-index: 10; /* Asegura que el botón esté sobre el contenido */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  transition: background-color 0.3s ease;
+}
+
+.navbar-vertical-toggle:hover {
+  background-color: rgba(60, 50, 90, 0.9); /* Color más oscuro al pasar el mouse */
+}
+
+.navbar {
+  position: relative; /* Asegura que el toggle esté contenido en la navbar */
+}
+
+/* Estilos para el contenedor de los enlaces de menú */
+.navbar-menu {
+display: flex;
+flex-direction: column;
+}
+
+/* Estilos para cada botón de menú */
+.navbar-button {
+width: 150px; /* Ancho por defecto */
+margin-bottom: 10px;
+padding: 10px;
+background-color: rgba(44, 39, 69, 0.9); /* Gris opaco */
+color: #fff;
+border: none;
+cursor: pointer;
+border-radius: 4px;
+text-align: left;
+transition: all 0.3s ease;
+display: flex;
+align-items: center;
+gap: 8px; /* Espacio entre icono y texto */
+}
+
+/* Cuando el menú está colapsado */
+.navbar.collapsed .navbar-button {
+width: 35px; /* Ancho reducido cuando está colapsado */
+}
+
+/* Puedes ajustar más propiedades para mejorar la experiencia de colapso */
+
+/* Estilo para el enlace en la barra de navegación */
+.navbar-link {
+text-decoration: none; /* Quita el subrayado de los enlaces */
+}
+
+/* Estilos para la sección inferior */
+.navbar-bottomSection {
+  margin-top: auto; /* Empuja la sección hacia la parte inferior del contenedor */
+}
+}
