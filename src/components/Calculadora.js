@@ -40,7 +40,7 @@ const CalcSplit = () => {
         {sessionStatus === "OK" || prestock === 1 ? (
           <CalcFull setRespuesta={setRespuesta} /> // Pasamos setRespuesta como prop
         ) : (
-          <Calc />
+          <Calc setRespuesta={setRespuesta} /> // Pasamos setRespuesta también aquí
         )}
       </div>
       <div className="right-section">
