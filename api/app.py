@@ -260,7 +260,7 @@ def generar_poligono_wkt(lat, lon, radio, num_puntos=10):
 
 from mysql.connector import Error
 
-@app.route('/search-polygon', methods=['GET'])
+@app.route('/api/search-polygon', methods=['GET'])
 def buscar_puntos_en_poligono():
     """
     Endpoint para buscar puntos dentro de un polígono definido por un punto y un radio.
