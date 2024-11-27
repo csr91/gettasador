@@ -488,11 +488,10 @@ client = MongoClient(uri, server_api=ServerApi('1'))
 db = client['gettasador']
 collection_disp_ip = db['disp_ip']
 
-
-
 @app.route('/api/getsession', methods=['GET'])
 def rctindex():
     clean_expired_entries()
+
     dispositivo = request.headers.get('User-Agent', 'Unknown')
     ip = request.remote_addr
     user_id = session.get('userid')
@@ -565,6 +564,13 @@ def consumo_prestock():
     else:
         # Usuario autenticado u otra respuesta de rctindex
         return jsonify({'status': 'Error', 'message': 'Operación no permitida para usuarios autenticados'}), 403
+
+# Enviar un ping para confirmar una conexión exitosa
+try:
+    client.admin.command('ping')
+    print("Pinged your deployment. You successfully connected to MongoDB!")
+except Exception as e:
+    print(e)
 
 # Enviar un ping para confirmar una conexiónexitosa
 try:

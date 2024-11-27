@@ -17,6 +17,14 @@ import concurrent.futures
 import requests
 import mysql.connector
 
+# URI de conexión a MongoDB
+uri = "mongodb+srv://cesarmendoza77:7hLCBopqFoTBmF4v@cluster0.papc1wn.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
+client = MongoClient(uri, server_api=ServerApi('1'))
+
+# Obtener la base de datos y la colección
+db = client['gettasador']
+collection_disp_ip = db['disp_ip']
+
 def geolocalizar_direccion(direccion, provincia="CABA"):
     url = f"https://apis.datos.gob.ar/georef/api/direcciones?direccion={direccion}&provincia={provincia}"
     response = requests.get(url)
