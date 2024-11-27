@@ -1,56 +1,40 @@
 from functools import wraps
-from bdd import db_config
-import mysql.connector
+from bdd import db_config, get_connection
 from flask import Flask, render_template, jsonify, request, redirect, url_for, session, make_response
 from userlog import encriptar_password, guardar_usuario_en_db, login, generar_token, enviar_correo_confirmacion, loginsso, guardar_usuario_en_db_sso
 from flask import Flask
 from flask_cors import CORS
 from pymongo import MongoClient
 from pymongo.server_api import ServerApi
-import uuid
 from datetime import datetime
-from flask import jsonify, request, session
-import requests
+from geopy.distance import geodesic
+import uuid
 import time
-import requests
 import urllib.parse
 import math
 import re
 import concurrent.futures
+import requests
+import mysql.connector
 
 def geolocalizar_direccion(direccion, provincia="CABA"):
-    
     url = f"https://apis.datos.gob.ar/georef/api/direcciones?direccion={direccion}&provincia={provincia}"
-
-    # Hacer la solicitud GET a la API
     response = requests.get(url)
-
-    # Verificar si la solicitud fue exitosa
     if response.status_code == 200:
-        data = response.json()
-        if data['cantidad'] > 0:
-            ubicacion = data['direcciones'][0]['ubicacion']
-            latitud = ubicacion['lat']
-            longitud = ubicacion['lon']
-            return latitud, longitud, direccion
-        else:
-            return None
+        return response.json()  # Retorna el JSON con los datos de la dirección
     else:
-        return None
-
+        return {"error": f"Error al consultar {direccion}. Código de estado: {response.status_code}"}
 
 def geolocalizar_multiples_direcciones(direcciones, provincia="CABA"):
-    
-    resultados = []
-    
-    # Ejecutar las solicitudes en paralelo
+    resultados = {}
     with concurrent.futures.ThreadPoolExecutor() as executor:
-        futures = [executor.submit(geolocalizar_direccion, direccion, provincia) for direccion in direcciones]
+        futures = {executor.submit(geolocalizar_direccion, direccion, provincia): direccion for direccion in direcciones}
         for future in concurrent.futures.as_completed(futures):
-            resultado = future.result()
-            if resultado:
-                resultados.append(resultado)
-    
+            direccion = futures[future]
+            try:
+                resultados[direccion] = future.result()
+            except Exception as e:
+                resultados[direccion] = {"error": str(e)}
     return resultados
 
 # Función para convertir metros a grados
@@ -110,6 +94,8 @@ def buscar_propiedades(direccion, metros):
                     f"lat:{cortar_a_6_decimales(punto_sur_este[0])}_{cortar_a_6_decimales(punto_norte_oeste[0])},"
                     f"lat:{cortar_a_6_decimales(punto_norte_oeste[1])}_{cortar_a_6_decimales(punto_sur_este[1])}&category=MLA1459"
                 )
+
+                print(search_url_base)
 
                 response = requests.get(f"{search_url_base}&limit=1&offset=0", headers={'Authorization': f'Bearer {access_token}'})
 
@@ -277,3 +263,92 @@ def registro():
             return jsonify({'error': 'El correo electrónico ya está registrrado.'}), 409
         else:
             return jsonify({'error': 'Ocurrió un error al crear la cuenta.'}), 500
+
+# Tu API key de Google Maps
+API_KEY = 'AIzaSyC6sYSWETxfI2noip-BHL6GEZ8QkfC6SeQ'
+
+# Función que obtiene las direcciones sin geolocalización y las geocodifica
+def fetch_directions_without_geo():
+    try:
+        # Obtener la conexión
+        connection = get_connection()
+        cursor = connection.cursor()
+
+        # Consulta SQL para obtener direcciones sin geolocalización
+        query = "SELECT id, direccion FROM avisos WHERE geo IS NULL;"
+        
+        # Ejecutar la consulta
+        cursor.execute(query)
+
+        # Obtener los resultados
+        results = cursor.fetchall()
+
+        # Lista para almacenar los IDs actualizados
+        updated_ids = []
+
+        # Procesar cada dirección
+        for row in results:
+            aviso_id = row[0]
+            direccion = row[1]
+
+            # Geocodificar la dirección usando Google Maps API
+            geocode_url = f"https://maps.googleapis.com/maps/api/geocode/json?address={direccion}, Capital Federal, Argentina&key={API_KEY}"
+
+            # Realizar la solicitud a la API
+            response = requests.get(geocode_url)
+
+            # Verificar si la solicitud fue exitosa
+            if response.status_code == 200:
+                data = response.json()
+
+                # Extraer las coordenadas (latitud y longitud) si están disponibles
+                if data['status'] == 'OK':
+                    lat = data['results'][0]['geometry']['location']['lat']
+                    lng = data['results'][0]['geometry']['location']['lng']
+                    
+                    # Preparar el valor para el campo 'geo'
+                    geo = f"{lat}, {lng}"
+
+                    # Actualizar la tabla con los nuevos datos
+                    update_query = """
+                    UPDATE avisos
+                    SET latitud = %s, longitud = %s, geo = %s
+                    WHERE id = %s;
+                    """
+                    cursor.execute(update_query, (lat, lng, geo, aviso_id))
+                    connection.commit()  # Confirmar los cambios en la base de datos
+
+                    # Agregar el ID a la lista de actualizados
+                    updated_ids.append(aviso_id)
+
+                else:
+                    print(f"Error geocodificando la dirección {direccion}: {data['status']}")
+            else:
+                print(f"Error en la solicitud a Geocoding API: {response.status_code}")
+    
+    except Exception as e:
+        print(f"Error al obtener direcciones: {e}")
+    finally:
+        # Cerrar la conexión
+        cursor.close()
+        connection.close()
+
+        # Imprimir los IDs actualizados al final
+        if updated_ids:
+            print("Geolocalización actualizada con Geocoding API de Google:")
+            print(f"Ids: {updated_ids}")
+        else:
+            print("No se actualizaron IDs.")
+
+# Función para limpiar entradas expiradas en MongoDB
+def clean_expired_entries():
+    current_time = datetime.now()
+    # Encuentra los documentos que serán eliminados
+    expired_entries = collection_disp_ip.find({'endtime': {'$lt': current_time}})
+    
+    # Extrae y muestra los UUIDs de los documentos a eliminar
+    uuids_to_delete = [entry.get('uuid') for entry in expired_entries]
+    print("UUIDs a limpiar:", uuids_to_delete)
+    
+    # Elimina los documentos cuyo campo 'endtime' ya ha pasado
+    collection_disp_ip.delete_many({'endtime': {'$lt': current_time}})

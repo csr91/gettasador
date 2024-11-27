@@ -1,31 +1,311 @@
 import concurrent.futures
 import requests
 import mysql.connector
-from flask_cors import CORS
+import uuid
 import json
+from flask_cors import CORS
 from functools import wraps
-from bdd import db_config
+from bdd import db_config, get_connection
 from flask import Flask, render_template, jsonify, request, redirect, url_for, session, make_response
 from userlog import encriptar_password, guardar_usuario_en_db, login, generar_token, enviar_correo_confirmacion, loginsso, guardar_usuario_en_db_sso
-from apicore import get_user_email, requiere_session, registro, buscar_propiedades, geolocalizar_direccion, geolocalizar_multiples_direcciones
+from apicore import get_user_email, requiere_session, registro, buscar_propiedades, geolocalizar_direccion, geolocalizar_multiples_direcciones, clean_expired_entries
 from pymongo import MongoClient
 from pymongo.server_api import ServerApi
-import uuid
 from datetime import datetime, timedelta
+from geopy.distance import geodesic
 
 app = Flask(__name__)
 app.secret_key = 'calcinmo'
 app.config['SECRET_KEY'] = 'calcinmo'
 CORS(app)  # Habilitar CORS para todas las rutas
 
-# Función para obtener una nueva conexión a la base de datos
-def get_connection():
-    return mysql.connector.connect(
-        host="172.245.184.156",
-        user="integracion",
-        password="lalita2024",
-        database="inmob"
-    )
+@app.route('/api/save_avisos', methods=['POST'])
+def save_aviso():
+    try:
+        # Obtener los datos enviados en el cuerpo de la solicitud
+        avisos = request.json
+        
+        if not avisos or not isinstance(avisos, list):
+            return jsonify({'error': 'Invalid input. Expecting a list of records.'}), 400
+
+        # Extraer las direcciones para geolocalizar
+        direcciones = [aviso['direccion_parsed'] for aviso in avisos if aviso.get('direccion_parsed')]
+
+        # Obtener datos de geolocalización en batch
+        geo_resultados = geolocalizar_multiples_direcciones(direcciones)
+
+        # Enriquecer avisos con datos de geolocalización
+        for aviso in avisos:
+            direccion = aviso.get('direccion_parsed')
+            geo_data = geo_resultados.get(direccion, {}).get('direcciones', [])
+
+            if geo_data:  # Verifica si la lista de direcciones no está vacía
+                ubicacion = geo_data[0].get('ubicacion', {})
+                aviso['latitud'] = ubicacion.get('lat', None)
+                aviso['longitud'] = ubicacion.get('lon', None)
+                aviso['geo'] = f"{ubicacion.get('lat')}, {ubicacion.get('lon')}" if ubicacion.get('lat') and ubicacion.get('lon') else None
+            else:
+                aviso['latitud'] = None
+                aviso['longitud'] = None
+                aviso['geo'] = None
+
+
+        # Conexión a la base de datos
+        conn = get_connection()
+        cursor = conn.cursor()
+
+        # Consulta SQL con múltiples valores
+        sql = """
+        INSERT INTO avisos (
+            origen, aviso_id, url, direccion, direccion_parsed,
+            sub_barrio, barrio, ciudad, provincia, pais,
+            precio, moneda, superficie, superficie_cub, ambientes,
+            dormitorios, banos, cochera, toilette, antiguedad, 
+            disposicion, orientacion, luminosidad, latitud, longitud,
+            geo, seller_name, geom
+        ) VALUES (
+        %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 
+        %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 
+        %s, %s, %s, %s, %s, %s, %s, 
+        CASE 
+                WHEN %s IS NOT NULL AND %s IS NOT NULL THEN ST_GeomFromText(CONCAT('POINT(', %s, ' ', %s, ')'), 4326) 
+                ELSE NULL 
+            END);
+        """
+
+        # Preparar los valores a insertar
+        values = []
+        for aviso in avisos:
+            latitud = aviso.get('latitud', None)
+            longitud = aviso.get('longitud', None)
+
+            # Añadir los valores a la lista, incluyendo coordenadas como parámetros
+            values.append((
+                aviso.get('origen', None),
+                aviso.get('aviso_id', None),
+                aviso.get('url', None),
+                aviso.get('direccion', None),
+                aviso.get('direccion_parsed', None),
+                aviso.get('sub_barrio', None),
+                aviso.get('barrio', None),
+                aviso.get('ciudad', None),
+                aviso.get('provincia', None),
+                aviso.get('pais', None),
+                aviso.get('precio', None),
+                aviso.get('moneda', None),
+                aviso.get('superficie', None),
+                aviso.get('superficie_cub', None),
+                aviso.get('ambientes', None),
+                aviso.get('dormitorios', None),
+                aviso.get('banos', None),
+                aviso.get('cochera', None),
+                aviso.get('toilette', None),
+                aviso.get('antiguedad', None),
+                aviso.get('disposicion', None),
+                aviso.get('orientacion', None),
+                aviso.get('luminosidad', None),
+                latitud,
+                longitud,
+                aviso.get('geo', None),
+                aviso.get('seller_name', None),
+                longitud,
+                latitud,
+                longitud,
+                latitud
+            ))
+
+        # Ejecutar la consulta en batch
+        cursor.executemany(sql, values)
+        conn.commit()
+
+        # Cerrar conexión
+        cursor.close()
+        conn.close()
+
+        return jsonify({'message': f'{len(values)} avisos saved successfully'}), 200
+
+    except mysql.connector.Error as err:
+        if conn.is_connected():
+            conn.rollback()
+        return jsonify({'error': str(err)}), 500
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/raw_save_avisos', methods=['POST'])
+def raw_save_aviso():
+    try:
+        # Obtener los datos enviados en el cuerpo de la solicitud
+        avisos = request.json
+        if not avisos or not isinstance(avisos, list):
+            return jsonify({'error': 'Invalid input. Expecting a list of records.'}), 400
+
+        # Conexión a la base de datos
+        conn = get_connection()
+        cursor = conn.cursor()
+
+        # Consulta SQL con manejo dinámico del campo geom
+        sql = """
+        INSERT INTO avisos (
+            origen, aviso_id, url, direccion, direccion_parsed, 
+            sub_barrio, barrio, ciudad, provincia, 
+            pais, precio, moneda, superficie, 
+            superficie_cub, ambientes, dormitorios, 
+            banos, cochera, toilette, antiguedad, 
+            disposicion, orientacion, luminosidad, 
+            latitud, longitud, geo, meli_category_id, 
+            seller_id, seller_name, geom
+        ) VALUES (
+            %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 
+            %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 
+            %s, %s, %s, %s, %s, %s, %s, %s, %s,
+            CASE 
+                WHEN %s IS NOT NULL AND %s IS NOT NULL THEN ST_GeomFromText(CONCAT('POINT(', %s, ' ', %s, ')'), 4326) 
+                ELSE NULL 
+            END
+        );
+        """
+
+        # Preparar los valores a insertar
+        values = []
+        for aviso in avisos:
+            latitud = aviso.get('latitud', None)
+            longitud = aviso.get('longitud', None)
+
+            # Añadir los valores a la lista, incluyendo coordenadas como parámetros
+            values.append((
+                aviso.get('origen', None),
+                aviso.get('aviso_id', None),
+                aviso.get('url', None),
+                aviso.get('direccion', None),
+                aviso.get('direccion_parsed', None),
+                aviso.get('sub_barrio', None),
+                aviso.get('barrio', None),
+                aviso.get('ciudad', None),
+                aviso.get('provincia', None),
+                aviso.get('pais', None),
+                aviso.get('precio', None),
+                aviso.get('moneda', None),
+                aviso.get('superficie', None),
+                aviso.get('superficie_cub', None),
+                aviso.get('ambientes', None),
+                aviso.get('dormitorios', None),
+                aviso.get('banos', None),
+                aviso.get('cochera', None),
+                aviso.get('toilette', None),
+                aviso.get('antiguedad', None),
+                aviso.get('disposicion', None),
+                aviso.get('orientacion', None),
+                aviso.get('luminosidad', None),
+                latitud,
+                longitud,
+                aviso.get('geo', None),
+                aviso.get('meli_category_id', None),
+                aviso.get('seller_id', None),
+                aviso.get('seller_name', None),
+                longitud,
+                latitud,
+                longitud,
+                latitud
+            ))
+
+        # Ejecutar la consulta en batch
+        cursor.executemany(sql, values)
+        conn.commit()
+
+        # Cerrar conexión
+        cursor.close()
+        conn.close()
+
+        return jsonify({'message': f'{len(values)} avisos saved successfully'}), 200
+
+    except mysql.connector.Error as err:
+        if conn.is_connected():
+            conn.rollback()
+        return jsonify({'error': str(err)}), 500
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+
+def generar_poligono_wkt(lat, lon, radio, num_puntos=10):
+    """
+    Genera un polígono circular en formato WKT alrededor de un punto central.
+
+    Args:
+        lat (float): Latitud del punto central.
+        lon (float): Longitud del punto central.
+        radio (float): Radio del círculo en metros.
+        num_puntos (int): Número de puntos para aproximar el círculo.
+
+    Returns:
+        str: Polígono en formato WKT.
+    """
+    puntos = []
+    punto_central = (lat, lon)
+    angulo_incremento = 360 / num_puntos
+    
+    for i in range(num_puntos):
+        angulo = i * angulo_incremento
+        punto = geodesic(meters=radio).destination(punto_central, angulo)
+        puntos.append(f"{punto.longitude} {punto.latitude}")
+    
+    # Cerrar el polígono
+    puntos.append(puntos[0])
+    
+    # Formato WKT: POLYGON((lon1 lat1, lon2 lat2, ..., lon1 lat1))
+    return f"POLYGON(({', '.join(puntos)}))"
+
+
+from mysql.connector import Error
+
+@app.route('/search-polygon', methods=['GET'])
+def buscar_puntos_en_poligono():
+    """
+    Endpoint para buscar puntos dentro de un polígono definido por un punto y un radio.
+    """
+    try:
+        # Obtener parámetros de la solicitud
+        punto = request.args.get('point', None)
+        radio = request.args.get('distance', None)
+        
+        if not punto or not radio:
+            return jsonify({"error": "Parámetros 'point' y 'distance' son obligatorios"}), 400
+        
+        # Convertir parámetros
+        lat, lon = map(float, punto.split(','))
+        radio = float(radio)
+        
+        # Generar el polígono en formato WKT
+        poligono_wkt = generar_poligono_wkt(lat, lon, radio)
+        
+        # Consultar la base de datos
+        connection = get_connection()
+        cursor = connection.cursor()
+        
+        consulta = """
+        SELECT direccion, id, geo, ST_AsText(geom) AS geom_text
+        FROM avisos
+        WHERE ST_Within(geom, ST_GeomFromText(%s, 4326))
+        """
+        # Ejecutar consulta pasando el polígono como tupla
+        cursor.execute(consulta, (poligono_wkt,))
+        resultados = cursor.fetchall()
+        
+        # Cerrar conexión
+        cursor.close()
+        connection.close()
+
+        return jsonify(resultados), 200
+        
+    
+    except Error as e:
+        return jsonify({"error": f"Error en la base de datos: {str(e)}"}), 500
+    except ValueError:
+        return jsonify({"error": "Formato de parámetros inválido"}), 400
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 @app.route('/api/hello')
 def hello():
@@ -135,228 +415,6 @@ def fullin_calc():
     except Exception as e:
         return jsonify({'error': f'Error al procesar la solicitud: {str(e)}'}), 500
 
-# Contador de llamadas al endpoint
-call_count = 0
-
-@app.route('/api/save_avisos', methods=['POST'])
-def save_aviso():
-    global call_count  # Usar la variable global para el contador
-
-    try:
-        # Incrementar el contador
-        call_count += 1
-        print(call_count)
-
-        # Si el contador llega a 5, llamar a la función fetch_directions_without_geo en paralelo
-        # if call_count >= 5:
-        #     with concurrent.futures.ThreadPoolExecutor() as executor:
-        #         executor.submit(fetch_directions_without_geo)
-        #     call_count = 0
-
-        # Obtener los datos del cuerpo de la solicitud
-        data_list = request.json  # Se espera una lista de diccionarios
-        
-        # Lista para almacenar los avisos guardados y errores
-        saved_avisos = []
-        errors = []
-
-        # Establecer conexión a la base de datos
-        conn = get_connection()
-        cursor = conn.cursor()
-
-        # Definir la consulta SQL para insertar datos
-        sql = """
-        INSERT INTO avisos (origen, aviso_id, url, direccion, direccion_parsed, 
-                            sub_barrio, barrio, ciudad, provincia, 
-                            pais, precio, moneda, superficie, 
-                            superficie_cub, ambientes, dormitorios, 
-                            banos, cochera, toilette, antiguedad, 
-                            disposicion, orientacion, luminosidad, 
-                            latitud, longitud, geo) 
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
-        """
-
-        # Dividir data_list en grupos de 10
-        for i in range(0, len(data_list), 10):
-            batch = data_list[i:i + 10]
-            direcciones = [data['direccion'] for data in batch if 'direccion' in data]
-
-            # Llamar a la función de geolocalización múltiple
-            resultados_geo = geolocalizar_multiples_direcciones(direcciones)
-
-            # Crear un diccionario para mapear direcciones a resultados de geolocalización
-            geo_map = {direccion: (latitud, longitud) for latitud, longitud, direccion in resultados_geo}
-
-            # Procesar cada aviso en el batch
-            for data in batch:
-                # Verificar que se recibieron los campos requeridos
-                required_fields = ['origen', 'aviso_id', 'url', 'direccion']
-
-                # Variable para rastrear si hay errores
-                has_error = False
-                
-                # Validar campos
-                for field in required_fields:
-                    if field not in data or data[field] is None or data[field] == "":
-                        errors.append(f"Falta el campo o el valor es inválido: {field} en aviso_id {data.get('aviso_id')}")
-                        has_error = True  # Marcar que hay un error
-                        break  # Salir del bucle si hay un error en el aviso
-                
-                # Validar el precio si está presente y solo si no hay errores
-                if not has_error and 'precio' in data and data['precio'] is not None:
-                    try:
-                        float(data['precio'])  # Intentar convertir a float
-                    except ValueError:
-                        errors.append(f"El precio debe ser un número válido en aviso_id {data.get('aviso_id')}")
-                        has_error = True  # Marcar que hay un error
-                elif not has_error:
-                    errors.append(f"Falta el campo 'precio' o su valor es inválido en aviso_id {data.get('aviso_id')}")
-                    has_error = True  # Marcar que hay un error
-
-                # Si hay un error, continuar con el siguiente aviso
-                if has_error:
-                    continue
-                
-                # Obtener latitud y longitud del mapa de geolocalización
-                lat_long_geo = geo_map.get(data['direccion'])
-                if lat_long_geo:
-                    latitud, longitud = lat_long_geo
-                    geo = f"{latitud}, {longitud}"  # Concatenar latitud y longitud
-                else:
-                    latitud, longitud, geo = None, None, None  # Manejar el caso donde no se pudo obtener
-
-                # Ejecutar la consulta con los valores recibidos
-                cursor.execute(sql, (
-                    data['origen'], 
-                    data['aviso_id'], 
-                    data['url'], 
-                    data.get('direccion'),  
-                    data.get('direccion_parsed'),
-                    data.get('sub_barrio'),
-                    data.get('barrio'),
-                    data.get('ciudad'),
-                    data.get('provincia'),
-                    data.get('pais'),
-                    data.get('precio'),
-                    data.get('moneda'),
-                    data.get('superficie'),
-                    data.get('superficie_cub'),
-                    data.get('ambientes'),
-                    data.get('dormitorios'),
-                    data.get('banos'),
-                    data.get('cochera'),
-                    data.get('toilette'),
-                    data.get('antiguedad'),
-                    data.get('disposicion'),
-                    data.get('orientacion'),
-                    data.get('luminosidad'),
-                    latitud,  # Valor obtenido de geolocalización
-                    longitud,  # Valor obtenido de geolocalización
-                    geo  # Valor concatenado
-                ))
-                saved_avisos.append(data['aviso_id'])  # Agregar el aviso_id guardado a la lista
-
-            # Confirmar los cambios después de procesar el batch
-            conn.commit()
-
-        # Cerrar la conexión
-        cursor.close()
-        conn.close()
-
-        # Preparar respuesta
-        response = {
-            "message": "Avisos procesados.",
-            "saved_avisos": saved_avisos,
-            "errors": errors
-        }
-        print(response)
-        
-        return jsonify(response), 201 if not errors else 207  # 207 si hay advertencias (errores pero procesados)
-
-    except mysql.connector.Error as err:
-        print(err)
-        return jsonify({"error": str(err)}), 500
-    except Exception as e:
-        print(e)
-        return jsonify({"error": str(e)}), 500
-
-
-# Tu API key de Google Maps
-API_KEY = 'AIzaSyC6sYSWETxfI2noip-BHL6GEZ8QkfC6SeQ'
-
-# Función que obtiene las direcciones sin geolocalización y las geocodifica
-def fetch_directions_without_geo():
-    try:
-        # Obtener la conexión
-        connection = get_connection()
-        cursor = connection.cursor()
-
-        # Consulta SQL para obtener direcciones sin geolocalización
-        query = "SELECT id, direccion FROM avisos WHERE geo IS NULL;"
-        
-        # Ejecutar la consulta
-        cursor.execute(query)
-
-        # Obtener los resultados
-        results = cursor.fetchall()
-
-        # Lista para almacenar los IDs actualizados
-        updated_ids = []
-
-        # Procesar cada dirección
-        for row in results:
-            aviso_id = row[0]
-            direccion = row[1]
-
-            # Geocodificar la dirección usando Google Maps API
-            geocode_url = f"https://maps.googleapis.com/maps/api/geocode/json?address={direccion}, Capital Federal, Argentina&key={API_KEY}"
-
-            # Realizar la solicitud a la API
-            response = requests.get(geocode_url)
-
-            # Verificar si la solicitud fue exitosa
-            if response.status_code == 200:
-                data = response.json()
-
-                # Extraer las coordenadas (latitud y longitud) si están disponibles
-                if data['status'] == 'OK':
-                    lat = data['results'][0]['geometry']['location']['lat']
-                    lng = data['results'][0]['geometry']['location']['lng']
-                    
-                    # Preparar el valor para el campo 'geo'
-                    geo = f"{lat}, {lng}"
-
-                    # Actualizar la tabla con los nuevos datos
-                    update_query = """
-                    UPDATE avisos
-                    SET latitud = %s, longitud = %s, geo = %s
-                    WHERE id = %s;
-                    """
-                    cursor.execute(update_query, (lat, lng, geo, aviso_id))
-                    connection.commit()  # Confirmar los cambios en la base de datos
-
-                    # Agregar el ID a la lista de actualizados
-                    updated_ids.append(aviso_id)
-
-                else:
-                    print(f"Error geocodificando la dirección {direccion}: {data['status']}")
-            else:
-                print(f"Error en la solicitud a Geocoding API: {response.status_code}")
-    
-    except Exception as e:
-        print(f"Error al obtener direcciones: {e}")
-    finally:
-        # Cerrar la conexión
-        cursor.close()
-        connection.close()
-
-        # Imprimir los IDs actualizados al final
-        if updated_ids:
-            print("Geolocalización actualizada con Geocoding API de Google:")
-            print(f"Ids: {updated_ids}")
-        else:
-            print("No se actualizaron IDs.")
-
 @app.route('/api/sso', methods=['POST'])
 def sso():
     return get_user_email()
@@ -430,18 +488,7 @@ client = MongoClient(uri, server_api=ServerApi('1'))
 db = client['gettasador']
 collection_disp_ip = db['disp_ip']
 
-# Función para limpiar entradas expiradas en MongoDB
-def clean_expired_entries():
-    current_time = datetime.now()
-    # Encuentra los documentos que serán eliminados
-    expired_entries = collection_disp_ip.find({'endtime': {'$lt': current_time}})
-    
-    # Extrae y muestra los UUIDs de los documentos a eliminar
-    uuids_to_delete = [entry.get('uuid') for entry in expired_entries]
-    print("UUIDs a limpiar:", uuids_to_delete)
-    
-    # Elimina los documentos cuyo campo 'endtime' ya ha pasado
-    collection_disp_ip.delete_many({'endtime': {'$lt': current_time}})
+
 
 @app.route('/api/getsession', methods=['GET'])
 def rctindex():
