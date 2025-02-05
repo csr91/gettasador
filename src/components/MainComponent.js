@@ -4,8 +4,9 @@ import React from 'react';
 function MainComponent() {
   return (
     <div style={styles.main}>
-      <h1>Componente Principal</h1>
-      <p>Este es el contenido principal que se muestra a la derecha de la barra de navegación.</p>
+      <h1>Frame Trasa</h1>
+      <iframe title="Tarjetas 2025" width="800" height="636" src="https://app.powerbi.com/view?r=eyJrIjoiNjRmMWY1MjUtOGZiNy00ZjI2LTgwZDgtZjljMmI0NzNiODEzIiwidCI6ImE2ZDNmNWMyLWYyMWYtNGIyYi04MTEwLTMxM2FmZGFhNmY0MiJ9" frameborder="0" allowFullScreen="true"></iframe>
+      
     </div>
   );
 }
